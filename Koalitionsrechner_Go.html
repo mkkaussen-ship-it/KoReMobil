@@ -1,0 +1,306 @@
+
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Koalitionsrechner</title>
+
+<style>
+body{font-family:Arial, sans-serif;margin:0;padding:16px;max-width:1000px;margin:auto}
+h1{text-align:center}
+
+.party{
+display:flex;
+justify-content:space-between;
+padding:8px;
+border-bottom:1px solid #ddd
+}
+
+.party label{
+display:flex;
+align-items:center;
+gap:8px
+}
+
+.colorbox{
+width:14px;
+height:14px;
+display:inline-block
+}
+
+.result{
+font-size:20px;
+font-weight:bold;
+margin-top:10px
+}
+
+.majority{color:green}
+.no-majority{color:red}
+
+button{
+padding:10px;
+margin-top:10px;
+width:100%
+}
+
+select{
+padding:6px;
+margin-top:6px;
+width:100%
+}
+
+#coalitions{
+margin-top:20px;
+max-height:420px;
+overflow:auto;
+border:1px solid #ddd;
+padding:10px
+}
+
+.group{
+margin-top:12px;
+padding-top:6px;
+border-top:2px solid #ccc
+}
+
+.note{
+background:#f5f5f5;
+padding:8px;
+border-left:4px solid #999;
+margin-bottom:10px;
+font-size:14px
+}
+</style>
+</head>
+
+<body>
+
+<h1>Koalitionsrechner</h1>
+
+<div class="note">
+Koalitionen mit <b>AfD</b> oder <b>Die Linke</b> werden automatisch ausgeschlossen.
+</div>
+
+<h3>Parteien</h3>
+<div id="parties"></div>
+
+<div class="result">
+Sitze: <span id="seats">0</span>
+</div>
+
+<div id="majority"></div>
+
+<h3>Filter: Maximale Anzahl Parteien</h3>
+<select id="sizeFilter">
+<option value="0">Alle</option>
+</select>
+
+<h3>Partei muss enthalten sein</h3>
+<select id="requiredParty">
+<option value="">Keine Vorgabe</option>
+</select>
+
+<label style="display:block;margin-top:10px">
+<input type="checkbox" id="obFilter">
+Koalitionen mit OB anzeigen
+</label>
+
+<button onclick="findCoalitions()">Alle möglichen Mehrheitskoalitionen berechnen</button>
+
+<h3>Mögliche Mehrheitskoalitionen</h3>
+<div id="coalitions"></div>
+
+<script>
+
+const parties=[
+{name:"OB",seats:1,color:"white",border:true},
+{name:"GRÜNE",seats:21,color:"#1aa037"},
+{name:"CSU",seats:19,color:"#000000"},
+{name:"SPD",seats:15,color:"#e3000f"},
+{name:"Volt",seats:4,color:"#5a2ca0"},
+{name:"FDP",seats:3,color:"#ffed00"},
+{name:"FREIE WÄHLER",seats:2,color:"#f28c28"},
+{name:"ÖDP",seats:2,color:"#f39200"},
+{name:"Die PARTEI",seats:1,color:"#888"},
+{name:"Rosa Liste",seats:1,color:"#ff66aa"},
+{name:"München-Liste",seats:1,color:"#66ccff"},
+{name:"BK",seats:1,color:"#444"}
+];
+
+const majority=41;
+
+let coalitionResults=[];
+
+const partyDiv=document.getElementById("parties");
+
+/* OB zuerst, danach nach Sitzen sortiert */
+const sortedParties=[
+parties.find(p=>p.name==="OB"),
+...parties.filter(p=>p.name!=="OB").sort((a,b)=>b.seats-a.seats)
+];
+
+sortedParties.forEach(p=>{
+
+const div=document.createElement("div");
+div.className="party";
+
+const borderStyle = p.border ? "border:1px solid black;" : "";
+
+div.innerHTML=`
+<label>
+<input type="checkbox" value="${p.seats}" data-name="${p.name}" onchange="calculate()">
+<span class="colorbox" style="background:${p.color};${borderStyle}"></span>
+${p.name}
+</label>
+<span>${p.seats}</span>
+`;
+
+partyDiv.appendChild(div);
+
+});
+
+for(let i=1;i<=5;i++){
+let opt=document.createElement("option");
+opt.value=i;
+opt.text=i;
+document.getElementById("sizeFilter").appendChild(opt);
+}
+
+document.getElementById("sizeFilter").addEventListener("change",renderCoalitions);
+document.getElementById("requiredParty").addEventListener("change",renderCoalitions);
+document.getElementById("obFilter").addEventListener("change",renderCoalitions);
+
+sortedParties.forEach(p=>{
+
+let opt=document.createElement("option");
+opt.value=p.name;
+opt.text=p.name+" ("+p.seats+")";
+
+document.getElementById("requiredParty").appendChild(opt);
+
+});
+
+function calculate(){
+
+let total=0;
+
+document.querySelectorAll("input[type=checkbox]").forEach(cb=>{
+if(cb.checked) total+=Number(cb.value);
+});
+
+document.getElementById("seats").innerText=total;
+
+const m=document.getElementById("majority");
+
+if(total>=majority){
+m.innerHTML="Mehrheit erreicht";
+m.className="majority";
+}else{
+m.innerHTML="Keine Mehrheit";
+m.className="no-majority";
+}
+
+}
+
+function partyCount(combo){
+return combo.filter(p=>p!=="OB").length;
+}
+
+function findCoalitions(){
+
+coalitionResults=[];
+
+const n=parties.length;
+
+for(let i=1;i<(1<<n);i++){
+
+let seats=0;
+let combo=[];
+
+for(let j=0;j<n;j++){
+
+if(i&(1<<j)){
+seats+=parties[j].seats;
+combo.push(parties[j].name);
+}
+
+}
+
+if(seats>=majority){
+
+coalitionResults.push({
+names:combo,
+size:partyCount(combo),
+seats:seats
+});
+
+}
+
+}
+
+renderCoalitions();
+
+}
+
+function renderCoalitions(){
+
+const sizeFilter=parseInt(document.getElementById("sizeFilter").value);
+const required=document.getElementById("requiredParty").value;
+const showOB=document.getElementById("obFilter").checked;
+
+const box=document.getElementById("coalitions");
+box.innerHTML="";
+
+let groups={};
+
+coalitionResults.forEach(c=>{
+
+if(sizeFilter!==0 && c.size>sizeFilter) return;
+if(required && !c.names.includes(required)) return;
+
+if(showOB && !c.names.includes("OB")) return;
+if(!showOB && c.names.includes("OB")) return;
+
+if(!groups[c.size]) groups[c.size]=[];
+
+groups[c.size].push(c);
+
+});
+
+Object.keys(groups).sort((a,b)=>a-b).forEach(size=>{
+
+let section=document.createElement("div");
+section.className="group";
+
+let title=document.createElement("h4");
+title.innerText=size+"er-Koalitionen";
+
+section.appendChild(title);
+
+groups[size].sort((a,b)=>a.seats-b.seats);
+
+groups[size].forEach(c=>{
+
+let names=[...c.names];
+
+if(names.includes("OB")){
+names=names.filter(n=>n!=="OB");
+names.unshift("OB");
+}
+
+let div=document.createElement("div");
+div.innerText=names.join(" + ")+" ("+c.seats+")";
+section.appendChild(div);
+
+});
+
+box.appendChild(section);
+
+});
+
+}
+
+</script>
+</body>
+</html>
